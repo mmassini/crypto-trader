@@ -1,0 +1,33 @@
+name: Retrain Models
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'   # Domingo 2am UTC
+  workflow_dispatch:
+
+jobs:
+  retrain:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run retrain
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
+          BINANCE_TESTNET: ${{ secrets.BINANCE_TESTNET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python -c "
+          import asyncio
+          import yaml
+          from agents.post_mortem.retrain_pipeline import run_retrain
+          with open('config/instruments.yaml') as f:
+              cfg = yaml.safe_load(f)
+          asyncio.run(run_retrain(cfg['symbols']))
+          "

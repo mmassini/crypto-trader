@@ -1,0 +1,26 @@
+name: Crypto Trading Session
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 00:00 UTC diario (24/7, ajustar si querés)
+  workflow_dispatch:
+
+jobs:
+  trade:
+    runs-on: self-hosted
+    timeout-minutes: 1440   # 24 horas max
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run trading session
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
+          BINANCE_TESTNET: ${{ secrets.BINANCE_TESTNET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py

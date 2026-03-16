@@ -1,0 +1,15 @@
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+
+timeframe: "1m"
+
+# Stop loss y take profit
+atr_multiplier_sl: 1.5    # SL = 1.5 × ATR(14)
+reward_risk_ratio: 2.0    # TP = 2:1
+
+# Features crypto-específicas
+use_funding_rate: true
+use_volume_delta: true
+use_open_interest: true
