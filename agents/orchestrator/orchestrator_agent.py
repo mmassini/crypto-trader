@@ -111,6 +111,7 @@ class Orchestrator:
                 continue
 
             signal, confidence = model.predict(features)
+            logger.info(f"{symbol} → {signal} ({confidence:.1%})")
 
             if signal == "FLAT" or confidence < settings.min_confidence:
                 continue

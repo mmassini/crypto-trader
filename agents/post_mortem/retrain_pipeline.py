@@ -15,7 +15,7 @@ from storage.schema import Session, ModelVersion, Trade
 logger = logging.getLogger(__name__)
 
 
-def _label_signal(df: pd.DataFrame, horizon: int = 5, threshold: float = 0.001) -> pd.Series:
+def _label_signal(df: pd.DataFrame, horizon: int = 5, threshold: float = 0.0003) -> pd.Series:
     """
     Genera etiquetas: 2=LONG, 1=FLAT, 0=SHORT.
     Basado en retorno futuro a `horizon` velas.

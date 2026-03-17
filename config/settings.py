@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     max_concurrent_positions: int = 3
 
     # ML
-    min_confidence: float = 0.60
+    min_confidence: float = 0.52
     lookback_days: int = 180
 
     # Trading
