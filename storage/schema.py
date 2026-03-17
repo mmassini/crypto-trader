@@ -44,6 +44,9 @@ class EquitySnapshot(Base):
     recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+import os
+os.makedirs("data", exist_ok=True)
+
 engine = create_engine("sqlite:///data/trading.db")
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
