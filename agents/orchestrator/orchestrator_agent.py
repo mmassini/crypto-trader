@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 
 import yaml
 
@@ -12,8 +13,22 @@ from agents.reporting.telegram_reporter import TelegramReporter
 from agents.risk.position_sizer import RiskAgent
 from binance import AsyncClient
 from config.settings import settings
+from storage.schema import Session, Trade
 
 logger = logging.getLogger(__name__)
+
+UY = ZoneInfo("America/Montevideo")
+
+# Horarios de reporte en hora Uruguay
+# (hora, minuto, tipo)
+REPORT_SCHEDULE = [
+    (7, 30, "morning"),    # Resumen madrugada
+    (10, 30, "periodic"),
+    (13, 30, "periodic"),
+    (16, 30, "periodic"),
+    (19, 30, "periodic"),
+    (22, 0,  "close"),     # Cierre del día
+]
 
 
 class Orchestrator:
@@ -32,6 +47,7 @@ class Orchestrator:
         self.client: AsyncClient | None = None
         self._starting_balance: float = 0.0
         self._running = False
+        self._sent_reports: set = set()  # evita duplicados
 
     async def start(self):
         logger.info("Starting Orchestrator")
@@ -49,13 +65,18 @@ class Orchestrator:
         self._running = True
 
         await self.reporter.send(
-            f"Crypto Trader iniciado\n"
+            f"🤖 <b>[Crypto Trader] Iniciado</b>\n"
             f"Símbolos: {', '.join(self.symbols)}\n"
             f"Balance: ${self._starting_balance:,.2f}\n"
             f"Modo: {'TESTNET' if settings.binance_testnet else 'REAL'}"
         )
 
-        await self._loop()
+        await asyncio.gather(
+            self._loop(),
+            self._report_loop(),
+        )
+
+    # ── Trading loop ──────────────────────────────────────────────────────────
 
     async def _loop(self):
         while self._running:
@@ -126,12 +147,80 @@ class Orchestrator:
 
             if trade:
                 await self.reporter.send(
-                    f"Trade abierto\n"
-                    f"{signal} {symbol}\n"
+                    f"📊 <b>[Crypto Trader] Trade abierto</b>\n"
+                    f"{'🟢' if signal == 'LONG' else '🔴'} {signal} {symbol}\n"
                     f"Cantidad: {qty}\n"
                     f"Entrada: {current_price:.4f} | SL: {stop_loss:.4f} | TP: {take_profit:.4f}\n"
                     f"Confianza: {confidence:.1%}"
                 )
+
+    # ── Report loop ───────────────────────────────────────────────────────────
+
+    async def _report_loop(self):
+        """Chequea cada minuto si corresponde enviar un reporte programado."""
+        while self._running:
+            now = datetime.now(UY)
+            for hour, minute, report_type in REPORT_SCHEDULE:
+                key = (now.date(), hour, minute)
+                if now.hour == hour and now.minute == minute and key not in self._sent_reports:
+                    self._sent_reports.add(key)
+                    try:
+                        await self._send_scheduled_report(report_type, now)
+                    except Exception as e:
+                        logger.error(f"Report error ({report_type}): {e}")
+            await asyncio.sleep(60)
+
+    async def _send_scheduled_report(self, report_type: str, now: datetime):
+        balance = await self.executor.get_balance() if self.executor else 0.0
+        pnl_session = balance - self._starting_balance
+
+        # Determinar ventana de tiempo para el reporte
+        if report_type == "morning":
+            since = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            title = "🌅 <b>[Crypto Trader] Resumen madrugada</b>"
+        elif report_type == "close":
+            since = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            title = "🌙 <b>[Crypto Trader] Cierre del día</b>"
+        else:
+            since = now - timedelta(hours=3)
+            title = "📈 <b>[Crypto Trader] Reporte periódico</b>"
+
+        since_utc = since.astimezone(timezone.utc).replace(tzinfo=None)
+
+        # Consultar trades en la ventana
+        with Session() as session:
+            trades = session.query(Trade).filter(
+                Trade.opened_at >= since_utc,
+                Trade.is_open == False,
+            ).all()
+
+            open_trades = session.query(Trade).filter(Trade.is_open == True).all()
+
+        total_trades = len(trades)
+        winning = [t for t in trades if (t.pnl or 0) > 0]
+        losing  = [t for t in trades if (t.pnl or 0) < 0]
+        pnl_period = sum(t.pnl or 0 for t in trades)
+        win_rate = len(winning) / total_trades * 100 if total_trades > 0 else 0
+
+        open_info = ""
+        if open_trades:
+            open_info = f"\n📂 Posiciones abiertas: {len(open_trades)}"
+
+        msg = (
+            f"{title}\n"
+            f"🕐 {now.strftime('%H:%M')} UY\n\n"
+            f"💰 Balance: ${balance:,.2f}\n"
+            f"📊 PnL sesión: ${pnl_session:+,.2f}\n\n"
+            f"🔢 Trades cerrados: {total_trades}\n"
+            f"✅ Ganadores: {len(winning)} | ❌ Perdedores: {len(losing)}\n"
+            f"🎯 Win rate: {win_rate:.1f}%\n"
+            f"💵 PnL período: ${pnl_period:+,.2f}"
+            f"{open_info}"
+        )
+
+        await self.reporter.send(msg)
+
+    # ── Shutdown ──────────────────────────────────────────────────────────────
 
     async def stop(self):
         self._running = False
@@ -145,7 +234,7 @@ class Orchestrator:
         balance = await self.executor.get_balance() if self.executor else 0.0
         pnl = balance - self._starting_balance
         await self.reporter.send(
-            f"Sesión terminada\n"
+            f"🛑 <b>[Crypto Trader] Sesión terminada</b>\n"
             f"Balance final: ${balance:,.2f}\n"
             f"PnL sesión: ${pnl:+,.2f}"
         )
