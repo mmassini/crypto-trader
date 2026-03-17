@@ -15,6 +15,7 @@ class TelegramReporter:
         if not settings.telegram_bot_token or not settings.telegram_chat_id:
             logger.debug(f"Telegram not configured, skipping: {message}")
             return
+        logger.info(f"Telegram token prefix: {settings.telegram_bot_token[:10]}... chat_id: {settings.telegram_chat_id}")
         try:
             async with httpx.AsyncClient() as client:
                 await client.post(
