@@ -96,7 +96,7 @@ async def run_retrain(symbols: list[str]):
                     ModelVersion.is_champion == True,
                 ).order_by(ModelVersion.trained_at.desc()).first()
 
-                if champion is None or sharpe > (champion.sharpe or 0) * 1.05:
+                if champion is None or sharpe >= (champion.sharpe or 0):
                     promote = True
                     if champion:
                         champion.is_champion = False

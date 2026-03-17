@@ -44,12 +44,16 @@ class CryptoModel:
                 "learning_rate": 0.05,
                 "subsample": 0.8,
                 "colsample_bytree": 0.8,
-                "use_label_encoder": False,
                 "eval_metric": "mlogloss",
                 "random_state": 42,
             }
+        # Pesos por clase para balancear LONG/FLAT/SHORT
+        counts = y.value_counts()
+        total = len(y)
+        sample_weights = y.map(lambda c: total / (len(counts) * counts[c]))
+
         self.model = XGBClassifier(**params)
-        self.model.fit(X, y)
+        self.model.fit(X, y, sample_weight=sample_weights)
         self.feature_names = list(X.columns)
 
     def save(self, version: str, is_champion: bool = False):
