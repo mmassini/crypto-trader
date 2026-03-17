@@ -1,16 +1,20 @@
 import asyncio
 import logging
+import os
 import signal
 import sys
 
 from agents.orchestrator.orchestrator_agent import Orchestrator
+
+log_dir = os.path.expanduser("~/crypto-trader-data/data")
+os.makedirs(log_dir, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("data/trading.log"),
+        logging.FileHandler(f"{log_dir}/trading.log"),
     ],
 )
 
