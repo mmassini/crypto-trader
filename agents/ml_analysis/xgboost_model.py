@@ -9,8 +9,8 @@ from xgboost import XGBClassifier
 
 logger = logging.getLogger(__name__)
 
-MODELS_DIR = Path("models")
-MODELS_DIR.mkdir(exist_ok=True)
+MODELS_DIR = Path(os.path.expanduser("~/crypto-trader-data/models"))
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Clases: 0=SHORT, 1=FLAT, 2=LONG
 CLASS_MAP = {0: "SHORT", 1: "FLAT", 2: "LONG"}

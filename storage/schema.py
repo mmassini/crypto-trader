@@ -45,8 +45,9 @@ class EquitySnapshot(Base):
 
 
 import os
-os.makedirs("data", exist_ok=True)
+data_dir = os.path.expanduser("~/crypto-trader-data/data")
+os.makedirs(data_dir, exist_ok=True)
 
-engine = create_engine("sqlite:///data/trading.db")
+engine = create_engine(f"sqlite:///{data_dir}/trading.db")
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
