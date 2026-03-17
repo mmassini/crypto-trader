@@ -58,11 +58,9 @@ def compute_sharpe(returns: pd.Series) -> float:
 
 
 async def run_retrain(symbols: list[str]):
-    client = await AsyncClient.create(
-        api_key=settings.binance_api_key,
-        api_secret=settings.binance_secret_key,
-        testnet=settings.binance_testnet,
-    )
+    # Datos históricos desde Binance real (endpoint público, sin auth)
+    # El testnet no tiene histórico suficiente para entrenar
+    client = await AsyncClient.create()
     try:
         for symbol in symbols:
             logger.info(f"Retraining {symbol}...")
