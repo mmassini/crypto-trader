@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from binance import AsyncClient
-from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET, FUTURE_ORDER_TYPE_STOP_MARKET, FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET
+from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 
 from config.settings import settings
 from storage.schema import Session, Trade
@@ -78,37 +78,7 @@ class BinanceExecutor:
             )
             order_id = str(order["orderId"])
 
-            # Stop loss + take profit — if these fail, close entry immediately
-            try:
-                await self.client.futures_create_order(
-                    symbol=symbol,
-                    side=close_side,
-                    type=FUTURE_ORDER_TYPE_STOP_MARKET,
-                    stopPrice=round(stop_loss, 2),
-                    quantity=quantity,
-                    reduceOnly=True,
-                )
-                await self.client.futures_create_order(
-                    symbol=symbol,
-                    side=close_side,
-                    type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
-                    stopPrice=round(take_profit, 2),
-                    quantity=quantity,
-                    reduceOnly=True,
-                )
-            except Exception as sl_exc:
-                logger.error(f"SL/TP order failed for {symbol}, closing entry position: {sl_exc}")
-                try:
-                    await self.client.futures_create_order(
-                        symbol=symbol,
-                        side=close_side,
-                        type=ORDER_TYPE_MARKET,
-                        quantity=quantity,
-                        reduceOnly=True,
-                    )
-                except Exception as close_exc:
-                    logger.error(f"Failed to close orphan position {symbol}: {close_exc}")
-                return None
+            # SL/TP orders not used — position is managed by close_position()
 
             trade = Trade(
                 symbol=symbol,
