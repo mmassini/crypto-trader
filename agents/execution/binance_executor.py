@@ -65,7 +65,8 @@ class BinanceExecutor:
                 side=close_side,
                 type=FUTURE_ORDER_TYPE_STOP_MARKET,
                 stopPrice=round(stop_loss, 2),
-                closePosition=True,
+                quantity=quantity,
+                reduceOnly=True,
             )
 
             # Take profit
@@ -74,7 +75,8 @@ class BinanceExecutor:
                 side=close_side,
                 type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
                 stopPrice=round(take_profit, 2),
-                closePosition=True,
+                quantity=quantity,
+                reduceOnly=True,
             )
 
             trade = Trade(
