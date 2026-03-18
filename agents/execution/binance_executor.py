@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from binance import AsyncClient
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET, FUTURE_ORDER_TYPE_STOP_MARKET, FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET
@@ -10,10 +10,14 @@ from storage.schema import Session, Trade
 logger = logging.getLogger(__name__)
 
 
+_MARGIN_COOLDOWN_SECONDS = 600  # 10 min after insufficient margin error
+
+
 class BinanceExecutor:
     def __init__(self, client: AsyncClient):
         self.client = client
         self._qty_precision: dict[str, int] = {}
+        self._margin_cooldown_until: datetime | None = None
 
     async def _get_qty_precision(self, symbol: str) -> int:
         if symbol not in self._qty_precision:
@@ -42,6 +46,15 @@ class BinanceExecutor:
     ) -> Trade | None:
         side = SIDE_BUY if direction == "LONG" else SIDE_SELL
         close_side = SIDE_SELL if direction == "LONG" else SIDE_BUY
+
+        # Cooldown after insufficient margin error
+        if self._margin_cooldown_until:
+            now = datetime.now(timezone.utc)
+            if now < self._margin_cooldown_until:
+                remaining = int((self._margin_cooldown_until - now).total_seconds())
+                logger.warning(f"Skipping {symbol} — margin cooldown active ({remaining}s remaining)")
+                return None
+            self._margin_cooldown_until = None
 
         try:
             precision = await self._get_qty_precision(symbol)
@@ -105,7 +118,13 @@ class BinanceExecutor:
             return trade
 
         except Exception as e:
-            logger.error(f"Error opening position {symbol}: {e}")
+            if "-2019" in str(e):
+                self._margin_cooldown_until = datetime.now(timezone.utc) + timedelta(
+                    seconds=_MARGIN_COOLDOWN_SECONDS
+                )
+                logger.error(f"Margin insufficient for {symbol} — cooldown {_MARGIN_COOLDOWN_SECONDS}s: {e}")
+            else:
+                logger.error(f"Error opening position {symbol}: {e}")
             return None
 
     async def close_position(self, trade: Trade, exit_price: float) -> float:
@@ -168,7 +187,7 @@ class BinanceExecutor:
     async def get_balance(self) -> float:
         try:
             account = await self.client.futures_account()
-            return float(account["totalWalletBalance"])
+            return float(account["availableBalance"])
         except Exception as e:
             logger.error(f"Error getting balance: {e}")
             return 0.0
