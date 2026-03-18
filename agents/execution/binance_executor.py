@@ -78,25 +78,37 @@ class BinanceExecutor:
             )
             order_id = str(order["orderId"])
 
-            # Stop loss
-            await self.client.futures_create_order(
-                symbol=symbol,
-                side=close_side,
-                type=FUTURE_ORDER_TYPE_STOP_MARKET,
-                stopPrice=round(stop_loss, 2),
-                quantity=quantity,
-                reduceOnly=True,
-            )
-
-            # Take profit
-            await self.client.futures_create_order(
-                symbol=symbol,
-                side=close_side,
-                type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
-                stopPrice=round(take_profit, 2),
-                quantity=quantity,
-                reduceOnly=True,
-            )
+            # Stop loss + take profit — if these fail, close entry immediately
+            try:
+                await self.client.futures_create_order(
+                    symbol=symbol,
+                    side=close_side,
+                    type=FUTURE_ORDER_TYPE_STOP_MARKET,
+                    stopPrice=round(stop_loss, 2),
+                    quantity=quantity,
+                    reduceOnly=True,
+                )
+                await self.client.futures_create_order(
+                    symbol=symbol,
+                    side=close_side,
+                    type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
+                    stopPrice=round(take_profit, 2),
+                    quantity=quantity,
+                    reduceOnly=True,
+                )
+            except Exception as sl_exc:
+                logger.error(f"SL/TP order failed for {symbol}, closing entry position: {sl_exc}")
+                try:
+                    await self.client.futures_create_order(
+                        symbol=symbol,
+                        side=close_side,
+                        type=ORDER_TYPE_MARKET,
+                        quantity=quantity,
+                        reduceOnly=True,
+                    )
+                except Exception as close_exc:
+                    logger.error(f"Failed to close orphan position {symbol}: {close_exc}")
+                return None
 
             trade = Trade(
                 symbol=symbol,
