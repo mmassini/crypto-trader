@@ -50,6 +50,12 @@ class BinanceExecutor:
                 logger.warning(f"Quantity too small after rounding for {symbol}, skipping")
                 return None
 
+            # Establecer apalancamiento 10x
+            try:
+                await self.client.futures_change_leverage(symbol=symbol, leverage=10)
+            except Exception:
+                pass
+
             # Orden de entrada (market)
             order = await self.client.futures_create_order(
                 symbol=symbol,
