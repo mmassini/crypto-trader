@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 class BinanceExecutor:
     def __init__(self, client: AsyncClient):
         self.client = client
+        self._qty_precision: dict[str, int] = {}
+
+    async def _get_qty_precision(self, symbol: str) -> int:
+        if symbol not in self._qty_precision:
+            try:
+                info = await self.client.futures_exchange_info()
+                for s in info["symbols"]:
+                    for f in s["filters"]:
+                        if f["filterType"] == "LOT_SIZE":
+                            step = f["stepSize"]
+                            precision = len(step.rstrip("0").split(".")[-1]) if "." in step else 0
+                            self._qty_precision[s["symbol"]] = precision
+            except Exception as e:
+                logger.error(f"Error fetching exchange info: {e}")
+                self._qty_precision[symbol] = 0
+        return self._qty_precision.get(symbol, 3)
 
     async def open_position(
         self,
@@ -28,6 +44,12 @@ class BinanceExecutor:
         close_side = SIDE_SELL if direction == "LONG" else SIDE_BUY
 
         try:
+            precision = await self._get_qty_precision(symbol)
+            quantity = round(quantity, precision)
+            if quantity <= 0:
+                logger.warning(f"Quantity too small after rounding for {symbol}, skipping")
+                return None
+
             # Orden de entrada (market)
             order = await self.client.futures_create_order(
                 symbol=symbol,
