@@ -60,7 +60,7 @@ class Orchestrator:
         self.stream = BinanceStream(self.symbols)
         await self.stream.start()
 
-        self._starting_balance = await self.executor.get_balance()
+        self._starting_balance = await self.executor.get_wallet_balance()
         self.risk.record_equity(self._starting_balance)
         self._running = True
 
@@ -87,10 +87,12 @@ class Orchestrator:
             await asyncio.sleep(settings.decision_interval_seconds)
 
     async def _decision_cycle(self):
-        balance = await self.executor.get_balance()
-        if self.risk.check_daily_halt(balance, self._starting_balance):
+        wallet_balance = await self.executor.get_wallet_balance()
+        if self.risk.check_daily_halt(wallet_balance, self._starting_balance):
             logger.warning("Daily halt active, skipping cycle")
             return
+
+        balance = await self.executor.get_balance()  # available margin for sizing
 
         for symbol in self.symbols:
             if not self.stream.is_ready(symbol):

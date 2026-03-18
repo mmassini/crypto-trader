@@ -167,9 +167,19 @@ class BinanceExecutor:
         return total_pnl
 
     async def get_balance(self) -> float:
+        """Available margin for new orders."""
         try:
             account = await self.client.futures_account()
             return float(account["availableBalance"])
         except Exception as e:
             logger.error(f"Error getting balance: {e}")
+            return 0.0
+
+    async def get_wallet_balance(self) -> float:
+        """Total wallet balance (cash + unrealized PnL) for drawdown tracking."""
+        try:
+            account = await self.client.futures_account()
+            return float(account["totalWalletBalance"])
+        except Exception as e:
+            logger.error(f"Error getting wallet balance: {e}")
             return 0.0
